@@ -38,6 +38,25 @@ pub struct Field {
     pub clear: bool,
 }
 
+/// File-backed model keys get a Browse action. These are paths, unlike the
+/// catalog names used by directory-based engines.
+pub fn is_model_file_key(key: &str) -> bool {
+    key.ends_with(".model") || key.ends_with(".secondary_model") || key.ends_with(".model_path")
+}
+
+/// A friendly model name for display. The configuration keeps the full path;
+/// only the label loses the directory and whisper.cpp's `ggml-` prefix.
+pub fn model_label(value: &str) -> String {
+    if !(value.contains('/') || value.contains('\\')) {
+        return value.to_owned();
+    }
+    let stem = std::path::Path::new(value)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(value);
+    stem.strip_prefix("ggml-").unwrap_or(stem).to_owned()
+}
+
 pub fn display(value: &Value) -> String {
     match value {
         Value::Null => String::new(),

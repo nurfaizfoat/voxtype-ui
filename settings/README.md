@@ -24,6 +24,13 @@ limits, defaults, engine applicability, and restart requirements:
 - model, device, engine, and OSD-style lists discovered from `voxtype info`;
 - multiline text for multi-line values.
 
+Model paths are displayed as derived model names, never as long directories.
+**Browse…** opens the desktop file chooser; the selected file's stem (without
+`ggml-` and `.bin`) becomes the label while the full path is written to TOML.
+Typing a path through **Custom…** behaves the same way after **Done**.
+
+![Model path shown as a derived model name](../docs/settings-model.png)
+
 Use **search** across labels, descriptions, and dotted keys. Use **Default** to
 remove an override and fall back to the daemon's built-in value. **Show all
 engine settings** exposes controls for engines other than the selected one;

@@ -1,8 +1,8 @@
 use crate::{
     editor::{Editor, Modal, SECTIONS, summary_value},
-    icons,
+    icons, schema,
 };
-use rune::{Color, Cx, El, ScrollSpec, col, el, icon, row, text};
+use rune::{Color, Cx, El, FileDialogOptions, ScrollSpec, Tx, col, el, icon, row, text};
 use rune_kit::{
     Button, ButtonVariant, Kit, ScrollBar, Select, SelectAppearance, TextArea, TextInput,
 };
@@ -209,6 +209,41 @@ fn field_default(s: &Editor, index: usize, k: &Kit) -> El {
     .key(format!("default-{index}"))
 }
 
+fn browse_model(index: usize, enabled: bool, k: &Kit) -> El {
+    Button::new("Browse…")
+        .variant(ButtonVariant::Outline)
+        .disabled(!enabled)
+        .on_press_tx(move |s: &mut Editor, tx: &mut Tx| {
+            let options = FileDialogOptions {
+                title: "Choose a model file".into(),
+                ..Default::default()
+            }
+            .filter("Model files", &["bin", "onnx"]);
+            let key = s.fields[index].spec.key.clone();
+            tx.open_file(options, move |s: &mut Editor, result, _| match result {
+                Ok(Some(path)) => {
+                    if let Some(index) = s.field_index(&key) {
+                        let value = path.to_string_lossy().into_owned();
+                        s.fields[index].set(&value);
+                        s.fields[index].clear = false;
+                        s.custom = None;
+                        s.open_select = None;
+                        s.error = None;
+                        s.notice = format!("Selected model: {}", schema::model_label(&value));
+                    } else {
+                        s.error = Some(format!(
+                            "{key} is no longer available; reload and try again."
+                        ));
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => s.error = Some(format!("Could not open the file picker: {error}")),
+            });
+        })
+        .build(k)
+        .key(format!("browse-{index}"))
+}
+
 fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
     let f = &s.fields[index];
     let enabled = s.editable(index);
@@ -218,11 +253,13 @@ fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
     if matches!(f.spec.kind.as_str(), "enum" | "dynamic_enum") && s.custom != Some(index) {
         let values = s.choices(index);
         let refs: Vec<_> = values.iter().map(String::as_str).collect();
+        let shown = s.choice_display(index, &f.edit.text);
+        let current = (!f.edit.text.is_empty()).then_some(shown.as_str());
         let select = Select::new(format!("choice-{index}"), &refs)
             .label(&f.spec.label)
             .appearance(SelectAppearance::Field)
             .width(264.0)
-            .current((!f.edit.text.is_empty()).then_some(f.edit.text.as_str()))
+            .current(current)
             .placeholder("Unset · built-in default")
             .open(s.open_select == Some(index))
             .disabled(!enabled)
@@ -235,7 +272,8 @@ fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
             })
             .on_close(|s: &mut Editor| s.open_select = None)
             .on_choose(move |s: &mut Editor, value, _| {
-                s.fields[index].set(value);
+                let value = s.choice_value(index, value);
+                s.fields[index].set(&value);
                 s.open_select = None;
                 s.error = None;
             })
@@ -243,17 +281,29 @@ fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
             .h(34.0)
             .border(1.0, k.c.border_base);
         let custom = f.spec.open || f.spec.kind == "dynamic_enum";
-        return col().gap(6.0).items_end().child(select).child(if custom {
-            row().justify_end().child(
+        let browse = schema::is_model_file_key(&f.spec.key);
+        let mut actions = row().gap(6.0).justify_end();
+        if browse {
+            actions = actions.child(browse_model(index, enabled, k));
+        }
+        if custom {
+            actions = actions.child(
                 button("Custom…", enabled, false, k, move |s| {
                     s.custom = Some(index);
                     s.open_select = None;
                 })
                 .key(format!("custom-{index}")),
-            )
-        } else {
-            el().size(0.0, 0.0)
-        });
+            );
+        }
+        return col()
+            .gap(6.0)
+            .items_end()
+            .child(select)
+            .child(if browse || custom {
+                actions
+            } else {
+                el().size(0.0, 0.0)
+            });
     }
     let mut input = TextInput::new(&f.edit)
         .label(&f.spec.label)
@@ -324,6 +374,22 @@ fn field_row(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
                 .gap(6.0)
                 .items_end()
                 .child(input)
+                .child({
+                    let mut actions = row().gap(6.0).justify_end();
+                    if s.custom == Some(index) {
+                        if schema::is_model_file_key(&f.spec.key) {
+                            actions = actions.child(browse_model(index, s.editable(index), k));
+                        }
+                        actions = actions.child(
+                            button("Done", s.editable(index), false, k, move |s| {
+                                s.custom = None;
+                                s.error = None;
+                            })
+                            .key(format!("done-{index}")),
+                        );
+                    }
+                    actions
+                })
                 .child(field_default(s, index, k)),
         )
 }

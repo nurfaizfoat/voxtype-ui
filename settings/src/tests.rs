@@ -483,3 +483,58 @@ fn missing_model_and_device_are_reported_without_blocking_edits() {
     );
     assert!(s.validation().is_none(), "warnings do not block saving");
 }
+
+#[test]
+fn model_paths_display_a_friendly_name_while_saving_the_full_path() {
+    assert_eq!(
+        schema::model_label("/home/user/models/ggml-malaysian-whisper-small-v2.bin"),
+        "malaysian-whisper-small-v2"
+    );
+    assert_eq!(schema::model_label("base.en"), "base.en");
+    assert_eq!(schema::model_label("/models/ggml-base.en.bin"), "base.en");
+
+    let mut s = Editor::demo();
+    let i = s.field_index("whisper.model").unwrap();
+    s.fields[i].set("/tmp/ggml-browsed-model.bin");
+    assert_eq!(
+        s.choice_display(i, "/tmp/ggml-browsed-model.bin"),
+        "browsed-model"
+    );
+    assert_eq!(
+        s.choice_value(i, "browsed-model"),
+        "/tmp/ggml-browsed-model.bin"
+    );
+    assert!(
+        s.candidate()
+            .unwrap()
+            .contains("/tmp/ggml-browsed-model.bin")
+    );
+    assert!(!s.candidate().unwrap().contains("Model = \"browsed-model\""));
+}
+
+#[test]
+fn browse_button_resolves_a_model_file_and_shows_its_name() {
+    let mut rt = runtime((980.0, 720.0), 1.25);
+    rt.state.navigate(1);
+    rt.invalidate();
+    for _ in 0..24 {
+        rt.frame(1.0 / 60.0);
+    }
+    let index = rt.state.field_index("whisper.model").unwrap();
+    tap(&mut rt, &format!("browse-{index}"));
+    assert!(rt.file_dialog().is_some(), "Browse must open a file dialog");
+    rt.resolve_file_dialog(Some(PathBuf::from("/tmp/ggml-picked-model.bin")))
+        .unwrap();
+    for _ in 0..3 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert_eq!(
+        rt.state.fields[index].edit.text,
+        "/tmp/ggml-picked-model.bin"
+    );
+    assert_eq!(
+        rt.state.choice_display(index, "/tmp/ggml-picked-model.bin"),
+        "picked-model"
+    );
+    assert!(rt.state.custom.is_none());
+}

@@ -1,6 +1,6 @@
 use crate::{
     backend::{Backend, Inventory, Loaded, Saved, patch_document},
-    schema::{Field, Schema},
+    schema::{self, Field, Schema},
     theme::Theme,
 };
 use rune::{Key, KeyEvent, TextEdit, Tx};
@@ -193,9 +193,11 @@ impl Editor {
     pub fn editable(&self, index: usize) -> bool {
         !self.busy() && !self.raw_dirty() && self.fields[index].spec.compiled
     }
-    pub fn choices(&self, index: usize) -> Vec<String> {
+    /// Labels and underlying values for a picker. Model paths get a friendly
+    /// file-stem label; two files with the same stem get a numeric suffix.
+    pub fn choice_pairs(&self, index: usize) -> Vec<(String, String)> {
         let f = &self.fields[index];
-        let mut choices = if f.spec.key == "engine" {
+        let mut values = if f.spec.key == "engine" {
             self.inventory.engines.clone()
         } else {
             match f.spec.source.as_deref() {
@@ -210,11 +212,54 @@ impl Editor {
                 _ => f.spec.choices.clone(),
             }
         };
-        if !f.edit.text.is_empty() && !choices.contains(&f.edit.text) {
-            choices.insert(0, f.edit.text.clone());
+        if !f.edit.text.is_empty() && !values.contains(&f.edit.text) {
+            values.insert(0, f.edit.text.clone());
         }
-        choices.dedup();
-        choices
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for value in values {
+            if pairs.iter().any(|(_, existing)| existing == &value) {
+                continue;
+            }
+            let base = if schema::is_model_file_key(&f.spec.key) {
+                schema::model_label(&value)
+            } else {
+                value.clone()
+            };
+            let mut label = base.clone();
+            let mut n = 2;
+            while pairs.iter().any(|(shown, _)| shown == &label) {
+                label = format!("{base} ({n})");
+                n += 1;
+            }
+            pairs.push((label, value));
+        }
+        pairs
+    }
+    pub fn choices(&self, index: usize) -> Vec<String> {
+        self.choice_pairs(index)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect()
+    }
+    pub fn choice_display(&self, index: usize, value: &str) -> String {
+        self.choice_pairs(index)
+            .into_iter()
+            .find(|(_, candidate)| candidate == value)
+            .map(|(label, _)| label)
+            .unwrap_or_else(|| {
+                if schema::is_model_file_key(&self.fields[index].spec.key) {
+                    schema::model_label(value)
+                } else {
+                    value.to_owned()
+                }
+            })
+    }
+    pub fn choice_value(&self, index: usize, label: &str) -> String {
+        self.choice_pairs(index)
+            .into_iter()
+            .find(|(shown, _)| shown == label)
+            .map(|(_, value)| value)
+            .unwrap_or_else(|| label.to_owned())
     }
     pub fn model_warning(&self) -> Option<String> {
         let engine = self.engine();
@@ -504,6 +549,8 @@ pub fn summary_value(s: &Editor, key: &str) -> String {
             let value = &s.fields[i].edit.text;
             if value.is_empty() {
                 "(unset)".into()
+            } else if schema::is_model_file_key(key) {
+                schema::model_label(value)
             } else {
                 value.clone()
             }
