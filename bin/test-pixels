@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+mkdir -p "$ROOT/build"
+cd "$ROOT"
+export QT_FORCE_STDERR_LOGGING=1
+
+TMPDIR="${TMPDIR:-/tmp/opencode}" c++ -std=c++17 -fPIC -O2 "$ROOT/tests/physical_pixels.cpp" -o "$ROOT/build/test-physical-pixels" \
+    $(pkg-config --cflags --libs Qt6Quick Qt6Qml Qt6Gui)
+
+for ratio in 1 1.25 1.5 1.75 2; do
+    QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_SCALE_FACTOR="$ratio" \
+        "$ROOT/build/test-physical-pixels" "$ROOT/tests/PhysicalPixels.qml"
+done

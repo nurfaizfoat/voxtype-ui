@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ "$#" -gt 1 ]; then
+    echo "Usage: bin/preview [--demo]" >&2
+    exit 1
+fi
+case "${1:-}" in
+    --demo) export VOXTYPE_UI_DEMO=1 ;;
+    "") export VOXTYPE_UI_DEMO=0 ;;
+    -h|--help)
+        echo "Usage: bin/preview [--demo]"
+        echo "Foreground, click-through overlay. Ctrl+C stops it. No configuration changes."
+        echo "--demo: synthetic recording/transcribing cycle; never opens the microphone."
+        exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+esac
+
+for tool in qs hyprctl; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "Missing required tool: $tool" >&2
+        exit 1
+    fi
+done
+if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "Run this preview inside a Hyprland session." >&2
+    exit 1
+fi
+if [ "$VOXTYPE_UI_DEMO" = 0 ]; then
+    for module in StateReader AudioBridge; do
+        if [ ! -f "/usr/share/voxtype/quickshell/voxtype-shared/$module.qml" ]; then
+            echo "Missing packaged Voxtype Quickshell module: $module" >&2
+            exit 1
+        fi
+    done
+    if ! command -v voxtype-audio-bridge >/dev/null 2>&1; then
+        echo "Missing required tool: voxtype-audio-bridge" >&2
+        exit 1
+    fi
+fi
+
+export QT_FORCE_STDERR_LOGGING=1
+exec qs --no-duplicate --path "$ROOT/overlay/shell.qml"

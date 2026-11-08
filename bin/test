@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+mkdir -p "$ROOT/build"
+cd "$ROOT"
+export QT_QPA_PLATFORM=offscreen
+export QT_QUICK_BACKEND=software
+export QT_FORCE_STDERR_LOGGING=1
+QT_SCALE_FACTOR=1 /usr/lib/qt6/bin/qmltestrunner -input "$ROOT/tests" "$@"
+sh "$ROOT/bin/test-pixels"
