@@ -75,8 +75,10 @@ Rebuild the combined image with `sh bin/docs-preview` (ImageMagick and Fontconfi
   logical pixels inside the focused window's bottom center. A native-pixel Canvas
   buffer uses the actual window scale (which can differ from the screen scale).
   A black gap also separates every dot from the frame.
-- Exact centered taper at rest/reference; bounded, symmetric speech activity at
-  12.5 fps and a stepped processing sweep. No outlines, glow, blur, or gradients.
+- Exact centered taper at rest/reference; more sensitive, bounded, symmetric
+  listening activity at 25 fps and the original 12.5 fps processing sweep.
+  Strong input fills the same reference silhouette without enlarging the grid.
+  No outlines, glow, blur, or gradients.
 - Follow whichever window is currently focused, including during transcription.
 - Never activate a window, restore focus, or change Voxtype's output handling.
 - Install through Voxtype's existing OSD supervisor after testing the preview.

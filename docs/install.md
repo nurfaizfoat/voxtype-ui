@@ -63,11 +63,20 @@ them if you use custom XDG paths or a differently named daemon service.
 
 ## Update
 
-Stop recording first. Back up the installed overlay, copy the new `overlay/`
-files into `~/.local/share/voxtype-ui/overlay/`, and restart `voxtype.service`.
-Restarting is important: an already-running Quickshell may keep the old QML.
-Keep the service override pointing at the installed directory, not a development
-checkout or worktree.
+Stop recording first. Back up the installed overlay, then copy the new `overlay/`
+files into `~/.local/share/voxtype-ui/overlay/`. Quickshell normally watches QML/JS
+files and reloads them without restarting Voxtype. Verify the targeted instance:
+
+```sh
+qs log --path "$HOME/.local/share/voxtype-ui/overlay/shell.qml" --tail 12
+```
+
+Look for `Reloading configuration...` followed by `Configuration Loaded`, without
+new QML errors. The listening-sensitivity update was applied this way with the
+same daemon and Quickshell PIDs. If file watching is disabled or the reload does
+not succeed, explicitly confirm a service restart while idle rather than assuming
+the new UI is active. Keep the service override pointing at the installed
+directory, not a development checkout or worktree.
 
 ## Restore the stock GTK4 OSD
 

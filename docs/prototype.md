@@ -55,10 +55,18 @@ click-through, takes no keyboard focus, and reserves no desktop space.
   `[1,1,1,2,2,3,3,4,4,5,5,6,6,6,6,6,5,5,4,4,3,3,2,2,1,1,1]`.
   Centered stacks start at `round((6-count)/2)`. The reference has 92 active
   dots: 10 at 100%, 30 at 80%, 38 at 60%, and 14 at 40%.
-- Speech changes stack counts at 80ms intervals (12.5 fps), with no interpolation.
+- Listening changes stack counts at 40ms intervals (25 fps), with no sub-dot
+  interpolation. Peak/RMS levels use a visual-only power curve after a small
+  near-zero dead zone, making quieter input occupy more of the existing grid.
+  Strong peaks fill the same reference silhouette used during processing; the
+  grid, box dimensions and maximum stack heights do not change.
+  A 20ms attack / 140ms release envelope reacts promptly without flickering in
+  short syllable gaps, and still settles to silence when audio frames go stale.
   Mirrored, bounded noise keeps the hill symmetric and never exceeds capacity.
   Demo uses layered sine waves and deterministic noise; live uses existing audio.
+  This does not amplify the microphone or change VAD/transcription input.
 - During transcription, a stepped pulse sweeps across the reference silhouette.
+  Its 80ms (12.5 fps) cadence is unchanged.
 - Hides at idle, missing/hidden windows, and when Voxtype requests `--no-osd`.
 - Seeds initial focus with a read-only `hyprctl` query, then follows native focus
   events (including losing focus). Never highlights Omarchy's screensaver.
@@ -73,6 +81,8 @@ click-through, takes no keyboard focus, and reserves no desktop space.
 - Missing/stale audio frames decay to one active dot per column, not synthetic
   speech. Live mode never runs the simulated envelope.
 - The visual reflects peak/RMS amplitude, **not** a raw microphone waveform.
+  The boosted display range is not a calibrated audio meter: a full grid does
+  not imply that the recorded audio is clipping.
 - Windows smaller than the grid-fitted box plus vertical insets hide it rather than
   shrinking or overflowing it. Fullscreen windows use the same bottom inset.
 

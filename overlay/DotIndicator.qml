@@ -25,6 +25,7 @@ Rectangle {
     readonly property int physicalBorder: Math.round(border.width * renderRatio)
     readonly property var grid: Matrix.gridLayout(unit * renderRatio, physicalBorder, Matrix.bufferQuantum(renderRatio))
     readonly property bool processing: daemonState === "transcribing"
+    readonly property int frameInterval: processing ? 80 : 40
     readonly property real amplitude: simulate ? Matrix.speechEnvelope(phase) : level
     // Disabling animation provides the exact reference silhouette for inspection.
     readonly property var counts: !animate || processing ? Matrix.capacities
@@ -75,7 +76,8 @@ Rectangle {
     onColorChanged: raster.requestPaint()
 
     Timer {
-        interval: 80
+        // Listening reacts at 25fps; the approved processing sweep stays 12.5fps.
+        interval: root.frameInterval
         repeat: true
         running: root.animate && root.visible
         onTriggered: root.phase += interval / 1000

@@ -91,13 +91,18 @@ function speechEnvelope(time) {
 
 function activeCounts(amplitude, time) {
     var a = isFinite(amplitude) ? clamp(amplitude, 0, 1) : 0;
+    // At a strong peak use every dot of the same reference/processing shape.
+    // Otherwise jitter could leave its shorter outer shoulders unfilled.
+    if (a >= 0.95) return capacities.slice();
     var result = [];
     var previous = 1;
     // Mirror both sides, with a monotone ascent to the center: fluctuations
     // cannot break the symmetric hill or exceed the supplied silhouette.
     for (var column = 0; column <= 13; column++) {
-        var weight = 0.65 + 0.35 * (1 - Math.abs(column - 13) / 13);
-        var jitter = noise(column + Math.floor(time * 12.5) * 17) * 0.45 * a;
+        // Let moderate input spread across the existing tapered silhouette;
+        // retain its exact capacities, symmetry and six-row maximum.
+        var weight = 0.85 + 0.15 * (1 - Math.abs(column - 13) / 13);
+        var jitter = noise(column + Math.floor(time * 25) * 17) * 0.45 * a;
         var count = clamp(Math.round(1 + a * (capacities[column] - 1) * weight + jitter), previous, capacities[column]);
         result[column] = count;
         result[26 - column] = count;

@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import "../overlay"
 import "../overlay/DotMatrix.js" as Matrix
+import "../overlay/Geometry.js" as Levels
 
 Item {
     id: scene
@@ -189,6 +190,40 @@ Item {
             wait(180);
             compare(indicator.phase, phase);
             compare(indicator.counts, Matrix.capacities);
+        }
+
+        function test_liveSensitivityAndUnchangedProcessingGeometry() {
+            indicator.simulate = false;
+            indicator.animate = true;
+            indicator.sizeMultiplier = 1.56;
+            indicator.pixelScale = 3;
+            indicator.borderThickness = 2;
+            indicator.accent = "#6e9cf7";
+            compare(indicator.frameInterval, 40);
+            var grid = JSON.stringify(indicator.grid);
+            var width = indicator.width;
+            var height = indicator.height;
+            var cases = [
+                {name: "silence", peak: 0, rms: 0, minimum: 1},
+                {name: "quiet", peak: 0.04, rms: 0.008, minimum: 3},
+                {name: "moderate", peak: 0.12, rms: 0.025, minimum: 4},
+                {name: "strong", peak: 0.3, rms: 0.075, minimum: 6}
+            ];
+            for (var sample of cases) {
+                indicator.level = Levels.energy(sample.peak, sample.rms);
+                indicator.phase = 0.32;
+                wait(30);
+                verify(indicator.counts[13] >= sample.minimum);
+                compare(indicator.width, width);
+                compare(indicator.height, height);
+                compare(JSON.stringify(indicator.grid), grid);
+                grabImage(indicator).save("build/listening-" + sample.name + ".png");
+            }
+            indicator.daemonState = "transcribing";
+            compare(indicator.frameInterval, 80, "Processing cadence remains unchanged.");
+            compare(indicator.counts, Matrix.capacities);
+            compare(JSON.stringify(indicator.grid), grid);
+            compare(indicator.cells.length, 162);
         }
     }
 }

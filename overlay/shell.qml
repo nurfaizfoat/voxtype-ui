@@ -32,7 +32,7 @@ ShellRoot {
     }
 
     Timer {
-        interval: 80
+        interval: root.daemonState === "transcribing" ? 80 : 40
         running: root.active
         repeat: true
         onTriggered: {
@@ -43,9 +43,9 @@ ShellRoot {
                     value = Geometry.energy(source.item.peak, source.item.rms);
                 }
             }
-            // Fast attack and slower decay keep quiet speech legible without
-            // animating imaginary audio when the bridge stops sending frames.
-            root.level += (value - root.level) * (value > root.level ? 0.7 : 0.25);
+            // Visual-only fast attack/release. Missing or stale frames still
+            // decay to silence; they must never drive the simulated envelope.
+            root.level = Geometry.smoothLevel(root.level, value, interval);
         }
     }
 
