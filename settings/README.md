@@ -36,6 +36,39 @@ document can contain credentials and commands, so review it before sharing.
 
 ![Full TOML editor](../docs/settings-config.png)
 
+## Install locally
+
+```sh
+bin/settings-install     # Release build, user-local install, launcher entry
+bin/settings-uninstall   # Remove only the editor; config and daemon untouched
+```
+
+The installer needs no sudo and writes only under `~/.local`:
+
+- `~/.local/bin/voxtype-settings`
+- `~/.local/share/applications/voxtype-configure.desktop`
+- `~/.local/share/icons/hicolor/scalable/apps/voxtype-settings.svg`
+- `~/.local/share/pixmaps/voxtype-settings.svg` (fallback lookup)
+
+The desktop file replaces the existing **Voxtype Configuration** launcher entry,
+so it opens the GUI. The terminal editor is still available with
+`voxtype configure`. Set `VOXTYPE_SETTINGS_NO_OVERRIDE=1` to keep the packaged
+TUI launcher and install only the command. Set
+`VOXTYPE_SETTINGS_NEW_LAUNCHER=1` to additionally show a separate
+**Voxtype Settings** entry. Uninstall removes the override and restores any
+pre-existing user file it backed up.
+
+## Legacy TUI record
+
+Captured with `voxtype configure` before the GUI launcher was installed. The
+home path is redacted. The historical General screen showed a stale
+"model not downloaded" warning even though the configured model file exists;
+the GUI checks the model path directly.
+
+![Legacy Voxtype TUI General screen](../docs/legacy-voxtype-tui-general.png)
+
+![Legacy Voxtype TUI Engine screen](../docs/legacy-voxtype-tui-engine.png)
+
 ## Launch
 
 From the repository root:

@@ -35,10 +35,15 @@ black; the screenshots use an example accent rather than your current theme.
 ### Settings preview
 
 ```sh
-bin/settings          # Live editor for ~/.config/voxtype/config.toml.
+bin/settings-install  # Build and install the GUI + launcher for this user.
+bin/settings          # Run the live editor without installing.
 bin/settings --demo   # Synthetic data; Apply never writes or restarts.
 bin/settings-test     # Tests and headless gallery in build/settings/.
 ```
+
+`bin/settings-install` installs under `~/.local` with no sudo. Its launcher
+override makes **Voxtype Configuration** open the GUI; `voxtype configure` still
+opens the TUI. Reverse with `bin/settings-uninstall`.
 
 ![Working Voxtype settings editor](docs/settings-overview.png)
 

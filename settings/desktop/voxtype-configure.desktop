@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Voxtype Configuration
+GenericName=Voice-to-Text Settings
+Comment=Configure voxtype dictation settings (engine, model, hotkey, audio, output)
+Exec=voxtype-settings
+Icon=voxtype-settings
+Terminal=false
+NoDisplay=false
+Categories=Settings;
+Keywords=voxtype;voice;dictation;transcription;whisper;parakeet;settings;configuration;
+StartupWMClass=voxtype-settings
+StartupNotify=true

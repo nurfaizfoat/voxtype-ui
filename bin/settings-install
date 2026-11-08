@@ -1,0 +1,59 @@
+#!/bin/sh
+# Install the settings editor for the current user. No sudo, no package changes.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+APP_DIR="$DATA_HOME/applications"
+ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
+PIXMAP_DIR="$DATA_HOME/pixmaps"
+TARGET="${CARGO_TARGET_DIR:-$ROOT/build/settings-target}"
+
+mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR" "$PIXMAP_DIR"
+export CARGO_TARGET_DIR="$TARGET"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
+cargo build --release --locked --manifest-path "$ROOT/settings/Cargo.toml"
+
+install -m755 "$TARGET/release/voxtype-settings" "$BIN_DIR/voxtype-settings"
+install -m644 "$ROOT/settings/desktop/voxtype-settings.svg" "$ICON_DIR/voxtype-settings.svg"
+install -m644 "$ROOT/settings/desktop/voxtype-settings.svg" "$PIXMAP_DIR/voxtype-settings.svg"
+
+install_entry() {
+    source="$1"
+    target="$2"
+    tmp="$(mktemp)"
+    sed "s|^Exec=.*|Exec=$BIN_DIR/voxtype-settings|" "$source" > "$tmp"
+    if [ -e "$target" ] && ! grep -q '^StartupWMClass=voxtype-settings$' "$target"; then
+        cp -p "$target" "$target.pre-voxtype-settings"
+    fi
+    install -m644 "$tmp" "$target"
+    rm -f "$tmp"
+    if command -v desktop-file-validate >/dev/null 2>&1; then
+        desktop-file-validate "$target"
+    fi
+}
+
+# Replace the existing launcher by filename so "Voxtype Configuration" opens
+# the GUI. `voxtype configure` still opens the TUI. Set
+# VOXTYPE_SETTINGS_NO_OVERRIDE=1 to keep the packaged TUI launcher.
+if [ "${VOXTYPE_SETTINGS_NO_OVERRIDE:-0}" != "1" ]; then
+    install_entry "$ROOT/settings/desktop/voxtype-configure.desktop" "$APP_DIR/voxtype-configure.desktop"
+    if [ "${VOXTYPE_SETTINGS_NEW_LAUNCHER:-0}" != "1" ]; then
+        rm -f "$APP_DIR/voxtype-settings.desktop"
+    fi
+fi
+if [ "${VOXTYPE_SETTINGS_NEW_LAUNCHER:-0}" = "1" ]; then
+    install_entry "$ROOT/settings/desktop/voxtype-settings.desktop" "$APP_DIR/voxtype-settings.desktop"
+fi
+
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" || true
+if [ -f "$DATA_HOME/icons/hicolor/index.theme" ]; then
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "$DATA_HOME/icons/hicolor" || true
+fi
+
+printf 'Installed %s\n' "$BIN_DIR/voxtype-settings"
+if [ "${VOXTYPE_SETTINGS_NO_OVERRIDE:-0}" = "1" ]; then
+    printf 'Launcher override skipped; run %s or voxtype-settings.\n' "$BIN_DIR/voxtype-settings"
+else
+    printf 'Launcher: %s (opens the GUI; TUI remains: voxtype configure)\n' "$APP_DIR/voxtype-configure.desktop"
+fi
