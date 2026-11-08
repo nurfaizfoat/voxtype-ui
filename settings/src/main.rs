@@ -5,6 +5,7 @@ mod icons;
 mod schema;
 #[cfg(test)]
 mod tests;
+mod text_scale;
 mod theme;
 
 use std::path::PathBuf;
@@ -73,6 +74,7 @@ fn main() {
             ("status", |s| s.navigate(10)),
             ("advanced", |s| s.navigate(11)),
             ("config", |s| s.navigate(12)),
+            ("help", |s| s.modal = Some(editor::Modal::Help)),
             ("edited", |s| {
                 s.navigate(4);
                 if let Some(i) = s.field_index("output.type_delay_ms") {

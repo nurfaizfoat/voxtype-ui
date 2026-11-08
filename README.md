@@ -1,13 +1,14 @@
 # Voxtype UI
 
-![Synthetic recording preview with the themed dot-matrix indicator](docs/preview.png)
+A custom recording overlay and a complete graphical settings editor for
+[Voxtype](https://github.com/peteonrails/voxtype) on Omarchy/Hyprland.
+This is a companion UI, not a replacement transcription engine or an official
+Voxtype release. The existing daemon, speech engines and text output remain in use.
 
-Centered silhouette rendered at 3× for inspection (example accent):
+![Voxtype graphical configuration and theme-aware dot-matrix recording indicator](docs/voxtype-ui-overview.png)
 
-![Square-dot reference indicator](docs/indicator-3x.png)
-
-A custom Voxtype recording overlay and a complete graphical settings editor
-on Omarchy/Hyprland.
+Actual UI captures with demo settings; the indicator is enlarged 2× to show its
+square pixels. No real audio or private configuration is shown.
 
 ## Status
 
@@ -45,7 +46,7 @@ bin/settings-test     # Tests and headless gallery in build/settings/.
 override makes **Voxtype Configuration** open the GUI; `voxtype configure` still
 opens the TUI. Reverse with `bin/settings-uninstall`.
 
-![Working Voxtype settings editor](docs/settings-overview.png)
+![Voxtype settings following desktop text scaling](docs/settings-desktop-scaled.png)
 
 The editor follows `voxtype config schema --json`: engine, hotkey, audio,
 output, text, VAD, meeting, notifications, OSD, status and advanced controls,
@@ -53,8 +54,15 @@ with discovered models, ALSA devices, engines and OSD styles. The Config file
 page covers replacements, profiles, modifier maps, driver arrays and future keys.
 Apply validates the whole file, writes a private backup, preserves mode and
 atomically replaces the configuration; restart requires a separate confirmation
-and an idle daemon. Styling follows Strata's Omarchy mode: 13px JetBrains Mono,
-compact chrome and flat controls. See [settings/README.md](settings/README.md).
+and an idle daemon. Styling follows Strata's Omarchy mode: JetBrains Mono,
+desktop text scaling, compact chrome and flat controls. Like Strata, a 13px root
+is scaled and rounded before Wayland applies monitor scaling separately.
+See [settings/README.md](settings/README.md).
+
+More captures: [Overview](docs/settings-overview.png) ·
+[Model picker](docs/settings-model.png) · [Full TOML editor](docs/settings-config.png) ·
+[Recording preview](docs/preview.png) · [3× indicator detail](docs/indicator-3x.png).
+Rebuild the combined image with `sh bin/docs-preview` (ImageMagick and Fontconfig).
 
 ## Agreed first version
 

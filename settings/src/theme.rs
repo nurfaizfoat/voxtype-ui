@@ -9,6 +9,40 @@ pub const FONT_FAMILIES: (&str, &str) = (
     "JetBrains Mono, JetBrainsMono Nerd Font, ui-monospace",
 );
 
+/// Fixed logical-point roles for a compact desktop editor. Keep the Strata
+/// family, but distinguish reading copy from controls and technical metadata.
+pub mod typography {
+    use rune::TextStyle;
+    use rune_kit::Kit;
+
+    pub const PAGE_TITLE: TextStyle = TextStyle::new(22.0, 600.0).lh(28.0);
+    pub const SECTION_TITLE: TextStyle = TextStyle::new(16.0, 600.0).lh(24.0);
+    pub const FIELD_LABEL: TextStyle = TextStyle::new(14.0, 500.0).lh(20.0);
+    pub const BODY: TextStyle = TextStyle::new(13.0, 400.0).lh(20.0);
+    pub const CONTROL: TextStyle = TextStyle::new(13.0, 400.0).lh(18.0);
+    pub const ACTION: TextStyle = TextStyle::new(13.0, 500.0).lh(18.0);
+    pub const METADATA: TextStyle = TextStyle::new(12.0, 400.0).lh(18.0);
+    pub const VALUE: TextStyle = TextStyle::new(14.0, 400.0).lh(20.0);
+
+    // About 72 JetBrains Mono characters at the body size. Field descriptions
+    // can narrow with the window; prose must not stretch across wide panels.
+    pub const PROSE_WIDTH: f32 = 560.0;
+
+    pub fn scale(style: TextStyle, ratio: f32) -> TextStyle {
+        TextStyle {
+            size: style.size * ratio,
+            line_height: style.line_px() * ratio,
+            tracking: style.tracking * ratio,
+            ..style
+        }
+    }
+
+    /// Explicit UI roles use the same desktop scale as the kit's form controls.
+    pub fn for_kit(k: &Kit, style: TextStyle) -> TextStyle {
+        scale(style, k.ty.ui.size / CONTROL.size)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
     pub background: Color,
@@ -42,28 +76,47 @@ impl Default for Palette {
 }
 
 impl Palette {
+    pub fn kit_at_scale(self, ratio: f32) -> Kit {
+        let mut kit = self.kit();
+        for font in [
+            &mut kit.ty.ui,
+            &mut kit.ty.ui_medium,
+            &mut kit.ty.ui_compact,
+            &mut kit.ty.small,
+            &mut kit.ty.small_medium,
+            &mut kit.ty.body,
+            &mut kit.ty.body_medium,
+            &mut kit.ty.text_small,
+            &mut kit.ty.text_small_medium,
+            &mut kit.ty.text_xsmall,
+            &mut kit.ty.text_xsmall_medium,
+            &mut kit.ty.mono,
+        ] {
+            *font = typography::scale(*font, ratio);
+        }
+        kit
+    }
+
     pub fn kit(self) -> Kit {
         let mut kit = Kit::from_palette(PaletteSeed {
             bg: self.background,
             fg: self.foreground,
             accent: self.accent,
         });
-        let ui = TextStyle::new(13.0, 400.0).lh(18.0);
-        let medium = TextStyle::new(13.0, 600.0).lh(18.0);
-        let small = TextStyle::new(12.0, 400.0).lh(16.0);
+        use typography as ty;
         kit.ty = Type {
-            ui,
-            ui_medium: medium,
-            ui_compact: ui,
-            small,
-            small_medium: TextStyle::new(12.0, 600.0).lh(16.0),
-            body: ui,
-            body_medium: medium,
-            text_small: ui,
-            text_small_medium: medium,
-            text_xsmall: small,
-            text_xsmall_medium: small,
-            mono: ui,
+            ui: ty::CONTROL,
+            ui_medium: ty::ACTION,
+            ui_compact: ty::CONTROL,
+            small: ty::METADATA,
+            small_medium: TextStyle::new(12.0, 500.0).lh(18.0),
+            body: ty::BODY,
+            body_medium: TextStyle::new(13.0, 500.0).lh(20.0),
+            text_small: ty::BODY,
+            text_small_medium: TextStyle::new(13.0, 500.0).lh(20.0),
+            text_xsmall: ty::METADATA,
+            text_xsmall_medium: TextStyle::new(12.0, 500.0).lh(18.0),
+            mono: ty::CONTROL.mono(),
         };
         kit.radius = Radius {
             xs: 3.0,
@@ -179,6 +232,7 @@ pub struct Theme {
     pub path: Option<PathBuf>,
     pub loaded: bool,
     pub issue: Option<&'static str>,
+    pub text_scale: crate::text_scale::DesktopTextScale,
 }
 
 impl Theme {
@@ -188,6 +242,7 @@ impl Theme {
             path: None,
             loaded: false,
             issue: None,
+            text_scale: crate::text_scale::DesktopTextScale::fixed(1.0),
         }
     }
 
@@ -201,6 +256,12 @@ impl Theme {
     }
 
     pub fn for_app() -> Self {
+        let mut theme = Self::for_palette();
+        theme.text_scale = crate::text_scale::DesktopTextScale::for_app();
+        theme
+    }
+
+    fn for_palette() -> Self {
         if let Some(path) = std::env::var_os("VOXTYPE_SETTINGS_THEME_FILE") {
             return Self::from_path(path.into());
         }
@@ -216,6 +277,10 @@ impl Theme {
         state.map_or_else(Self::preview, |dir| {
             Self::from_path(dir.join("omarchy/current/theme/colors.toml"))
         })
+    }
+
+    pub fn kit(&self) -> Kit {
+        self.palette.kit_at_scale(self.text_scale.ratio())
     }
 
     pub fn refresh(&mut self) -> bool {
@@ -295,6 +360,70 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn type_roles_keep_headings_distinct_and_reading_copy_open() {
+        use typography as ty;
+        let kit = Palette::default().kit();
+        const {
+            assert!(ty::PAGE_TITLE.size > ty::SECTION_TITLE.size);
+            assert!(ty::SECTION_TITLE.size > ty::FIELD_LABEL.size);
+            assert!(ty::FIELD_LABEL.size > ty::BODY.size);
+            assert!(ty::BODY.size > ty::METADATA.size);
+        }
+        assert!(ty::BODY.line_px() >= ty::BODY.size * 1.5);
+        assert_eq!(kit.ty.body, ty::BODY);
+        assert_eq!(kit.ty.ui_compact, ty::CONTROL);
+        assert_eq!(kit.ty.ui_medium, ty::ACTION);
+        assert_eq!(kit.ty.small, ty::METADATA);
+    }
+
+    #[test]
+    fn desktop_scale_reaches_both_explicit_roles_and_kit_controls_once() {
+        use typography as ty;
+        let ratio = crate::text_scale::DesktopTextScale::fixed(0.8182).ratio();
+        let kit = Palette::default().kit_at_scale(ratio);
+        for font in [kit.ty.ui, kit.ty.ui_compact, kit.ty.body, kit.ty.mono] {
+            assert!((font.size - 11.0).abs() < 0.001);
+        }
+        for role in [
+            ty::PAGE_TITLE,
+            ty::SECTION_TITLE,
+            ty::FIELD_LABEL,
+            ty::METADATA,
+            ty::VALUE,
+        ] {
+            let scaled = ty::for_kit(&kit, role);
+            assert!((scaled.size / role.size - ratio).abs() < 0.001);
+            assert!((scaled.line_px() / role.line_px() - ratio).abs() < 0.001);
+            assert_eq!(scaled.weight, role.weight);
+        }
+    }
+
+    #[test]
+    fn reading_and_metadata_ink_meet_aa_on_both_panel_surfaces() {
+        let luminance = |c: Color| 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        for palette in [
+            Palette::default(),
+            parse_palette(include_str!("../fixtures/forest.toml")).unwrap(),
+            parse_palette("background='#f7f7f7'\nforeground='#171717'\naccent='#0044bb'").unwrap(),
+        ] {
+            let kit = palette.kit();
+            for ink in [kit.c.text_base, kit.c.text_muted, kit.c.text_faint] {
+                for surface in [kit.c.bg_base, kit.c.layer_01, kit.c.bg_deep] {
+                    let a = luminance(ink);
+                    let b = luminance(surface);
+                    let contrast = (a.max(b) + 0.05) / (a.min(b) + 0.05);
+                    assert!(
+                        contrast >= 4.5,
+                        "{} on {}: {contrast}",
+                        ink.hex(),
+                        surface.hex()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

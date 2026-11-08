@@ -447,7 +447,7 @@ impl Editor {
         });
     }
     pub fn poll(&mut self, time: f64, tx: &mut Tx) -> bool {
-        let mut changed = false;
+        let mut changed = self.theme.text_scale.poll(time);
         if time >= self.next_theme_check {
             changed |= self.theme.refresh();
             self.next_theme_check = time + 1.0;

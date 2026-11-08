@@ -1,6 +1,7 @@
 use crate::{
     editor::{Editor, Modal, SECTIONS, summary_value},
     icons, schema,
+    theme::typography as ty,
 };
 use rune::{Color, Cx, El, FileDialogOptions, ScrollSpec, Tx, col, el, icon, row, text};
 use rune_kit::{
@@ -8,7 +9,17 @@ use rune_kit::{
 };
 
 fn caption(value: impl Into<String>, k: &Kit) -> El {
-    text(value).font(k.ty.small).color(k.c.text_muted).wrap()
+    text(value)
+        .font(ty::for_kit(k, ty::METADATA))
+        .color(k.c.text_muted)
+        .wrap()
+}
+fn prose(value: impl Into<String>, k: &Kit) -> El {
+    text(value)
+        .font(k.ty.body)
+        .color(k.c.text_muted)
+        .max_w(ty::PROSE_WIDTH * k.ty.body.size / ty::BODY.size)
+        .wrap()
 }
 fn rule(k: &Kit) -> El {
     el().h(1.0).w_full().fill(k.c.border_muted).a11y_hidden()
@@ -89,7 +100,16 @@ fn navigation(s: &Editor, k: &Kit) -> El {
                     .color(k.c.icon_accent)
                     .a11y_hidden(),
                 )
-                .child(text(*section).font(k.ty.ui).color(k.c.text_base).grow(1.0))
+                .child(
+                    text(*section)
+                        .font(if s.page == page {
+                            k.ty.ui_medium
+                        } else {
+                            k.ty.ui
+                        })
+                        .color(k.c.text_base)
+                        .grow(1.0),
+                )
                 .child(caption(
                     if count == 0 {
                         String::new()
@@ -255,7 +275,7 @@ fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
         let refs: Vec<_> = values.iter().map(String::as_str).collect();
         let shown = s.choice_display(index, &f.edit.text);
         let current = (!f.edit.text.is_empty()).then_some(shown.as_str());
-        let select = Select::new(format!("choice-{index}"), &refs)
+        return Select::new(format!("choice-{index}"), &refs)
             .label(&f.spec.label)
             .appearance(SelectAppearance::Field)
             .width(264.0)
@@ -280,30 +300,6 @@ fn field_input(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
             .build(k, layers)
             .h(34.0)
             .border(1.0, k.c.border_base);
-        let custom = f.spec.open || f.spec.kind == "dynamic_enum";
-        let browse = schema::is_model_file_key(&f.spec.key);
-        let mut actions = row().gap(6.0).justify_end();
-        if browse {
-            actions = actions.child(browse_model(index, enabled, k));
-        }
-        if custom {
-            actions = actions.child(
-                button("Custom…", enabled, false, k, move |s| {
-                    s.custom = Some(index);
-                    s.open_select = None;
-                })
-                .key(format!("custom-{index}")),
-            );
-        }
-        return col()
-            .gap(6.0)
-            .items_end()
-            .child(select)
-            .child(if browse || custom {
-                actions
-            } else {
-                el().size(0.0, 0.0)
-            });
     }
     let mut input = TextInput::new(&f.edit)
         .label(&f.spec.label)
@@ -332,65 +328,98 @@ fn field_row(s: &Editor, index: usize, k: &Kit, layers: &mut Vec<El>) -> El {
     let mut copy = col()
         .min_w(0.0)
         .grow(1.0)
-        .gap(5.0)
+        .pt(6.0)
+        .gap(6.0)
         .child(
             text(&f.spec.label)
-                .font(k.ty.ui_medium)
+                .key(format!("label-{}", f.spec.key))
+                .font(ty::for_kit(k, ty::FIELD_LABEL))
                 .color(k.c.text_base)
                 .wrap(),
         )
-        .child(caption(&f.spec.description, k))
-        .child(caption(&f.spec.key, k));
+        .child(prose(&f.spec.description, k).key(format!("description-{}", f.spec.key)))
+        .child(
+            caption(&f.spec.key, k)
+                .key(format!("key-{}", f.spec.key))
+                .mt(2.0),
+        );
     if !f.spec.compiled {
         copy = copy.child(
             text("Unavailable in the active Voxtype binary")
-                .font(k.ty.small)
+                .font(k.ty.body)
                 .color(k.c.text_accent)
                 .wrap(),
         );
     }
     if f.clear {
-        copy = copy.child(caption("Override will be removed on Apply", k));
+        copy = copy.child(prose("Override will be removed on Apply", k));
     }
     if f.spec.key.ends_with(".language") {
-        copy = copy.child(caption(
+        copy = copy.child(prose(
             "Comma-separated codes are saved as a language array, e.g. en,ms.",
             k,
         ));
     }
     if let Some(error) = f.error() {
-        copy = copy.child(text(error).font(k.ty.small).color(k.c.danger.fg).wrap());
+        copy = copy.child(text(error).font(k.ty.body).color(k.c.danger.fg).wrap());
+    }
+    let enabled = s.editable(index);
+    let picker = matches!(f.spec.kind.as_str(), "enum" | "dynamic_enum");
+    let custom = picker && (f.spec.open || f.spec.kind == "dynamic_enum");
+    let browsing = schema::is_model_file_key(&f.spec.key) && (picker || s.custom == Some(index));
+    let has_default = !f.spec.file_value.is_null() || f.clear;
+    let mut actions = row().gap(6.0).justify_end();
+    if browsing {
+        actions = actions.child(browse_model(index, enabled, k));
+    }
+    if s.custom == Some(index) {
+        actions = actions.child(
+            button("Done", enabled, false, k, move |s| {
+                s.custom = None;
+                s.error = None;
+            })
+            .key(format!("done-{index}")),
+        );
+    } else if custom {
+        actions = actions.child(
+            button("Custom…", enabled, false, k, move |s| {
+                s.custom = Some(index);
+                s.open_select = None;
+            })
+            .key(format!("custom-{index}")),
+        );
+    }
+    if has_default {
+        actions = actions.child(field_default(s, index, k));
+    }
+    let mut controls = col().gap(8.0).items_end().child(input);
+    if browsing || custom || s.custom == Some(index) || has_default {
+        controls = controls.child(actions);
     }
     row()
         .key(format!("setting-{}", f.spec.key))
         .w_full()
         .px(18.0)
-        .py(16.0)
+        .py(18.0)
         .gap(20.0)
-        .center_y()
+        .items_start()
         .child(copy)
+        .child(controls)
+}
+
+fn summary_row(label: &str, value: String, k: &Kit) -> El {
+    row()
+        .w_full()
+        .gap(16.0)
+        .items_start()
+        .child(text(label).font(k.ty.body).color(k.c.text_muted).w(64.0))
         .child(
-            col()
-                .gap(6.0)
-                .items_end()
-                .child(input)
-                .child({
-                    let mut actions = row().gap(6.0).justify_end();
-                    if s.custom == Some(index) {
-                        if schema::is_model_file_key(&f.spec.key) {
-                            actions = actions.child(browse_model(index, s.editable(index), k));
-                        }
-                        actions = actions.child(
-                            button("Done", s.editable(index), false, k, move |s| {
-                                s.custom = None;
-                                s.error = None;
-                            })
-                            .key(format!("done-{index}")),
-                        );
-                    }
-                    actions
-                })
-                .child(field_default(s, index, k)),
+            text(value)
+                .font(ty::for_kit(k, ty::VALUE))
+                .color(k.c.text_base)
+                .grow(1.0)
+                .min_w(0.0)
+                .wrap(),
         )
 }
 
@@ -401,14 +430,22 @@ fn overview(s: &Editor, k: &Kit) -> El {
         .map(|b| b.path.display().to_string())
         .unwrap_or_else(|| "Demo fixture (never saved)".into());
     let mut content = col().w_full().gap(16.0)
-        .child(panel(col().gap(10.0)
-            .child(text(format!("Voxtype {} · {} settings", s.version, s.fields.len())).font(k.ty.ui_medium).color(k.c.text_base))
+        .child(panel(col().w_full().gap(16.0)
+            .child(text(format!("Voxtype {} · {} settings", s.version, s.fields.len())).role("heading").level(2).font(ty::for_kit(k, ty::SECTION_TITLE)).color(k.c.text_base).wrap())
             .child(caption(path, k))
-            .child(caption(format!("Engine: {}\nModel: {}\nInput: {}\nOutput: {}", s.engine(), summary_value(s, &format!("{}.model", s.engine())), summary_value(s, "audio.device"), summary_value(s, "output.mode")), k))
-            .child(caption("Defaults are read from the installed daemon's schema. Only changed fields are written; unrelated settings and comments are preserved.", k)), k))
-        .child(panel(col().gap(10.0).child(caption(&s.inventory.service, k)).child(caption(&s.inventory.variants, k))
-            .child(caption("This editor never installs packages, swaps binary variants, downloads models, records audio, or executes your configured hooks. Engine support is shown for the active binary.", k)), k))
-        .child(row().w_full().child(button("Reload configuration & devices", !s.busy(), false, k, |s| if s.demo { s.notice = "Demo inventory is synthetic.".into(); } else { s.modal = Some(Modal::Reload); }).key("reload")));
+            .child(col().w_full().gap(8.0)
+                .child(summary_row("Engine", s.engine(), k))
+                .child(summary_row("Model", summary_value(s, &format!("{}.model", s.engine())), k))
+                .child(summary_row("Input", summary_value(s, "audio.device"), k))
+                .child(summary_row("Output", summary_value(s, "output.mode"), k)))
+            .child(prose("Defaults are read from the installed daemon's schema. Only changed fields are written; unrelated settings and comments are preserved.", k)), k))
+        .child(panel(col().w_full().gap(12.0)
+            .child(row().w_full().gap(12.0).center_y()
+                .child(text("Runtime").role("heading").level(2).font(ty::for_kit(k, ty::SECTION_TITLE)).color(k.c.text_base).grow(1.0))
+                .child(button("Reload configuration & devices", !s.busy(), false, k, |s| if s.demo { s.notice = "Demo inventory is synthetic.".into(); } else { s.modal = Some(Modal::Reload); }).key("reload")))
+            .child(text(s.inventory.service.trim()).font(k.ty.body).color(k.c.text_base).wrap())
+            .child(prose(s.inventory.variants.trim(), k))
+            .child(prose("This editor never installs packages, swaps binary variants, downloads models, records audio, or executes your configured hooks. Engine support is shown for the active binary.", k)), k));
     for warning in s
         .model_warning()
         .into_iter()
@@ -422,7 +459,7 @@ fn overview(s: &Editor, k: &Kit) -> El {
                 .radius(k.radius.lg)
                 .border(1.0, k.c.danger.fg.alpha(0.5))
                 .fill(k.c.danger.bg)
-                .child(text(warning).font(k.ty.small).color(k.c.danger.fg).wrap()),
+                .child(text(warning).font(k.ty.body).color(k.c.danger.fg).wrap()),
         );
     }
     content
@@ -431,8 +468,8 @@ fn overview(s: &Editor, k: &Kit) -> El {
 fn config_file(s: &Editor, k: &Kit) -> El {
     let fields_dirty = s.fields.iter().any(|f| f.dirty());
     col().w_full().gap(14.0)
-        .child(caption("Advanced full-document editor: word replacements, profiles, modifier maps, driver arrays, recipes, and settings beyond the schema. TOML syntax is checked here and the entire result is checked by Voxtype before saving. This view can contain credentials; do not share screenshots.", k))
-        .child(caption(if fields_dirty { "Apply or reset the field edits first. Full-document editing is locked to avoid overwriting them." } else { "Field controls are locked while full-document edits are pending. Reset restores the loaded file." }, k))
+        .child(prose("Advanced full-document editor: word replacements, profiles, modifier maps, driver arrays, recipes, and settings beyond the schema. TOML syntax is checked here and the entire result is checked by Voxtype before saving. This view can contain credentials; do not share screenshots.", k))
+        .child(prose(if fields_dirty { "Apply or reset the field edits first. Full-document editing is locked to avoid overwriting them." } else { "Field controls are locked while full-document edits are pending. Reset restores the loaded file." }, k))
         .child(TextArea::new(&s.document).label("Full Voxtype TOML document").width(None).rows(24).max_height(480.0)
             .disabled(s.busy() || fields_dirty).on_edit(|s: &mut Editor| &mut s.document)
             .on_change(|s: &mut Editor, _| s.error = None).build(k).key("full-document").w_full().border(1.0, k.c.border_base))
@@ -441,7 +478,7 @@ fn config_file(s: &Editor, k: &Kit) -> El {
 fn settings(s: &Editor, k: &Kit, layers: &mut Vec<El>) -> El {
     let mut content = col().w_full().gap(14.0);
     if s.raw_dirty() {
-        content = content.child(caption(
+        content = content.child(prose(
             "Full-document edits are pending. Apply or reset them to unlock field controls.",
             k,
         ));
@@ -474,7 +511,7 @@ fn settings(s: &Editor, k: &Kit, layers: &mut Vec<El>) -> El {
         ));
     }
     if s.page == 9 {
-        content = content.child(caption("The installed custom recording overlay remains in place. Host size/layout/frame options may not affect custom QML; changing them does not edit its implementation.", k));
+        content = content.child(prose("The installed custom recording overlay remains in place. Host size/layout/frame options may not affect custom QML; changing them does not edit its implementation.", k));
     }
     let page_warning = match s.page {
         1 => s.model_warning(),
@@ -482,7 +519,7 @@ fn settings(s: &Editor, k: &Kit, layers: &mut Vec<El>) -> El {
         _ => None,
     };
     if let Some(warning) = page_warning {
-        content = content.child(caption(warning, k));
+        content = content.child(prose(warning, k));
     }
     let mut group = col()
         .w_full()
@@ -500,7 +537,7 @@ fn settings(s: &Editor, k: &Kit, layers: &mut Vec<El>) -> El {
         count += 1;
     }
     if count == 0 {
-        content.child(caption(
+        content.child(prose(
             "No matching settings. Try another search or show all engines.",
             k,
         ))
@@ -541,7 +578,7 @@ fn footer(s: &Editor, k: &Kit) -> El {
                     .child(
                         text(message)
                             .key("editor-status")
-                            .font(k.ty.small)
+                            .font(k.ty.body)
                             .color(if s.error.is_some() || s.validation().is_some() {
                                 k.c.danger.fg
                             } else {
@@ -569,6 +606,45 @@ fn footer(s: &Editor, k: &Kit) -> El {
     )
 }
 
+fn shortcut_help(k: &Kit) -> El {
+    let mut list = col().w_full().gap(10.0);
+    for (index, (shortcut, description)) in [
+        ("Ctrl+S / Ctrl+Enter", "Review and apply"),
+        ("Ctrl+R", "Confirm reload"),
+        ("Ctrl+Q", "Close (asks about unsaved edits)"),
+        ("Tab / Shift+Tab", "Move focus"),
+        ("Escape", "Dismiss menus or dialogs"),
+        ("?", "This help"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        list = list.child(
+            row()
+                .w_full()
+                .gap(16.0)
+                .items_start()
+                .child(
+                    text(shortcut)
+                        .key(format!("shortcut-{index}"))
+                        .font(k.ty.body)
+                        .color(k.c.text_base)
+                        .w(176.0),
+                )
+                .child(
+                    text(description)
+                        .key(format!("shortcut-description-{index}"))
+                        .font(k.ty.body)
+                        .color(k.c.text_muted)
+                        .grow(1.0)
+                        .min_w(0.0)
+                        .wrap(),
+                ),
+        );
+    }
+    list
+}
+
 fn modal(s: &Editor, kind: Modal, k: &Kit) -> El {
     let (title, copy, confirm) = match kind {
         Modal::Save => (if s.demo { "Apply demo changes?" } else { "Save configuration?" }, s.review(), "Save"),
@@ -576,7 +652,7 @@ fn modal(s: &Editor, kind: Modal, k: &Kit) -> El {
         Modal::Reload => ("Reload from disk?", "Unsaved edits will be discarded. Configuration, models and devices will be read again.".into(), "Reload"),
         Modal::Restart => ("Restart Voxtype?", "This interrupts the daemon. It is refused unless a status check reports idle; start a recording immediately after checking and the race is unavoidable. Saved settings take effect after restart.".into(), "Restart now"),
         Modal::Quit => ("Discard edits and close?", "Your unsaved changes have not been written to disk.".into(), "Discard & close"),
-        Modal::Help => ("Keyboard shortcuts", "Ctrl+S / Ctrl+Enter   Review and apply\nCtrl+R   Confirm reload\nCtrl+Q   Close (asks about unsaved edits)\nTab / Shift+Tab   Move focus\nEscape   Dismiss menus or dialogs\n?   This help".into(), "Got it"),
+        Modal::Help => ("Keyboard shortcuts", String::new(), "Got it"),
     };
     let confirm_enabled = kind != Modal::Restart
         || !s.demo && !s.dirty() && s.backend.as_ref().is_some_and(|b| b.restart_allowed);
@@ -598,14 +674,16 @@ fn modal(s: &Editor, kind: Modal, k: &Kit) -> El {
     el().key("modal-backdrop").absolute(0.0, 0.0).w_full().h_full().fill(Color::BLACK.alpha(0.60)).center()
         .child(col().key("confirmation-dialog").w(540.0).max_h(540.0).padding(24.0).gap(18.0).fill(k.c.layer_01).radius(k.radius.xl).border(1.0, k.c.border_base)
             .modal(true, |s: &mut Editor| s.modal = None)
-            .child(text(title).font(k.ty.ui_medium).color(k.c.text_base))
-            .child(col().key("review-scroll").w_full().max_h(320.0).shrink().scroll(ScrollSpec { stick_bottom: false }).child(caption(copy, k)).scroll_bar(k))
+            .child(text(title).role("heading").level(1).font(ty::for_kit(k, ty::SECTION_TITLE)).color(k.c.text_base).wrap())
+            .child(col().key("review-scroll").w_full().max_h(320.0).shrink().scroll(ScrollSpec { stick_bottom: false }).child(
+                if kind == Modal::Help { shortcut_help(k) } else { text(copy).font(k.ty.body).color(k.c.text_base).wrap() }
+            ).scroll_bar(k))
             .child(caption(if s.demo { "Demo mode: no writes or service actions." } else if kind == Modal::Save { "Only after validation succeeds: create a private backup and atomically replace the file. Restart is NOT automatic." } else { "" }, k))
             .child(row().w_full().gap(10.0).justify_end().child(button("Cancel", true, false, k, |s| s.modal = None).key("cancel")).child(confirm_button)))
 }
 
 pub fn view(s: &Editor, _: &mut Cx<Editor>) -> El {
-    let k = s.theme.palette.kit();
+    let k = s.theme.kit();
     let mut layers = Vec::new();
     let body = if !s.fields.is_empty() && !s.search.text.is_empty() {
         settings(s, &k, &mut layers)
@@ -615,7 +693,7 @@ pub fn view(s: &Editor, _: &mut Cx<Editor>) -> El {
         col()
             .w_full()
             .gap(12.0)
-            .child(caption(s.error.as_deref().unwrap_or(&s.notice), &k))
+            .child(prose(s.error.as_deref().unwrap_or(&s.notice), &k))
             .child(
                 row()
                     .gap(8.0)
@@ -648,9 +726,9 @@ pub fn view(s: &Editor, _: &mut Cx<Editor>) -> El {
                 .center_y()
                 .fill(k.c.bg_deep)
                 .child(
-                    text(format!("Settings / {}", SECTIONS[s.page]))
-                        .font(k.ty.ui_medium)
-                        .color(k.c.text_accent)
+                    text("Settings")
+                        .font(k.ty.ui)
+                        .color(k.c.text_muted)
                         .grow(1.0),
                 )
                 .child(button("?", true, false, &k, |s| {
@@ -709,8 +787,11 @@ pub fn view(s: &Editor, _: &mut Cx<Editor>) -> El {
                                 "Search results".into()
                             })
                             .key("page-title")
-                            .font(k.ty.ui_medium)
-                            .color(k.c.text_base),
+                            .role("heading")
+                            .level(1)
+                            .font(ty::for_kit(&k, ty::PAGE_TITLE))
+                            .color(k.c.text_base)
+                            .wrap(),
                         )
                         .child(body),
                 )

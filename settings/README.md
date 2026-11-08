@@ -124,12 +124,32 @@ installed recording indicator.
 ## Omarchy styling
 
 Colors follow the live Omarchy palette and typography follows the installed
-Strata-style interface: 13px JetBrains Mono, compact chrome, accent-tinted
-selection, outlined actions, and flat custom switches. Read
+Strata-style interface: JetBrains Mono, compact chrome, accent-tinted selection,
+outlined actions, and flat custom switches. A fixed logical-point type scale
+distinguishes page titles (22/28), section/dialog headings (16/24), field labels
+(14/20), reading copy (13/20), controls (13/18), and metadata (12/18). Sizes and
+line heights follow desktop text scaling and then display scaling separately;
+they do not shrink with the window. Prose
+is capped at about 72 characters, dotted keys remain secondary, and setting
+actions share one aligned row. The roles live in `src/theme.rs::typography`.
+Read
 `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` once per second. Optional
 `dark_background`, `lighter_background`, and `muted` tokens refine surfaces and
 borders. No theme files are written, and the square-dot recording indicator is
 untouched.
+
+Desktop font sizing follows the read-only
+`org.gnome.desktop.interface text-scaling-factor` setting. Like Strata, the
+13px root is multiplied by this factor and rounded to a whole logical pixel;
+every type role uses the resulting ratio. For example, `0.8182` produces an 11px
+root. Wayland's monitor scale is still applied separately, exactly once. The
+setting is checked asynchronously every two seconds; failures retain the last
+valid size. No Omarchy, GTK, Strata, or Voxtype configuration is modified.
+Headless captures default to factor 1 for reproducibility. Set
+`VOXTYPE_SETTINGS_TEXT_SCALE=0.8182` to capture a specific desktop text factor
+(or `=1` to temporarily disable desktop text scaling for this app only).
+
+![Native desktop text scaling at factor 0.8182 and 125% monitor scale](../docs/settings-desktop-scaled.png)
 
 ![Engine settings and discovered models](../docs/settings-engine.png)
 
@@ -158,8 +178,9 @@ CARGO_TARGET_DIR="$PWD/build/settings-target" \
 The default suite covers the full schema inventory, typed editing and arrays,
 validation, comment-preserving patches, raw-TOML mode, in-memory demo apply,
 backup/atomic/race/symlink/mode safety, navigation/search, unsaved-close prompts,
-keyboard help, theme polling, monospace metrics, and layout bounds at 1×, 1.25×
-and 2×. Two `#[ignore]` integration checks load and save a **temporary copy**
+keyboard help, theme polling, monospace metrics, type-role hierarchy, text
+contrast, long-label wrapping, dialog bounds, and layout bounds at 1×, 1.25×
+and 2× (840–1440 logical pixels wide). Two `#[ignore]` integration checks load and save a **temporary copy**
 through the installed Voxtype CLI:
 
 ```sh
@@ -167,9 +188,9 @@ CARGO_TARGET_DIR="$PWD/build/settings-target" \
   cargo test --manifest-path settings/Cargo.toml installed_ -- --ignored
 ```
 
-Full native composition and fractional-scale review still needs an unlocked,
-awake display. Tiling compositors may allocate less than the requested 840×620
-minimum; float or enlarge the window for review.
+Native Wayland composition has also been visually checked at 1100×720 with
+125% display scaling. Tiling compositors may allocate less than the requested
+840×620 minimum; float or enlarge the window for review.
 
 ## Limits and compatibility
 

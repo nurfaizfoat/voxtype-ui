@@ -9,10 +9,16 @@ cargo test --locked --manifest-path "$ROOT/settings/Cargo.toml"
 cargo build --locked --manifest-path "$ROOT/settings/Cargo.toml"
 APP="$CARGO_TARGET_DIR/debug/voxtype-settings"
 unset VOXTYPE_SETTINGS_THEME_FILE
-for page in overview engine audio output osd advanced config edited invalid search; do
+unset VOXTYPE_SETTINGS_TEXT_SCALE
+for page in overview engine audio output osd advanced config edited invalid search help; do
     "$APP" --scene "$page" --scale 1.25 --at 0.5 \
         --snap "$ROOT/build/settings/$page.png" --tree "$ROOT/build/settings/$page.json"
 done
+"$APP" --scene engine --size 840x620 --scale 1.25 --at 0.5 \
+    --snap "$ROOT/build/settings/minimum-engine.png" --tree "$ROOT/build/settings/minimum-engine.json"
+VOXTYPE_SETTINGS_TEXT_SCALE=0.8182 \
+    "$APP" --scene engine --scale 1.25 --at 0.5 \
+    --snap "$ROOT/build/settings/desktop-scaled-engine.png" --tree "$ROOT/build/settings/desktop-scaled-engine.json"
 VOXTYPE_SETTINGS_THEME_FILE="$ROOT/settings/fixtures/forest.toml" \
     "$APP" --scene audio --scale 1.25 --at 0.5 \
     --snap "$ROOT/build/settings/theme-audio.png" --tree "$ROOT/build/settings/theme-audio.json"

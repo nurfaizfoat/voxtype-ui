@@ -6,7 +6,12 @@ use schema::Schema;
 use std::path::PathBuf;
 
 fn runtime(size: (f32, f32), scale: f32) -> Runtime<Editor> {
+    runtime_with_text_scale(size, scale, 1.0)
+}
+
+fn runtime_with_text_scale(size: (f32, f32), scale: f32, text_scale: f32) -> Runtime<Editor> {
     let mut editor = Editor::demo();
+    editor.theme.text_scale = crate::text_scale::DesktopTextScale::fixed(text_scale);
     editor.navigate(0);
     let mut rt = Runtime::with_text(
         editor,
@@ -19,6 +24,70 @@ fn runtime(size: (f32, f32), scale: f32) -> Runtime<Editor> {
     rt.on_key = Some(on_key);
     rt.frame(0.0);
     rt
+}
+
+#[test]
+fn desktop_font_scale_changes_type_without_rescaling_the_window_or_draft() {
+    let mut rt = runtime_with_text_scale((980.0, 720.0), 1.25, 1.0);
+    let index = rt.state.field_index("whisper.model").unwrap();
+    rt.state.fields[index].set("/models/ggml-custom.bin");
+    let candidate = rt.state.candidate().unwrap();
+    let title_height = |rt: &Runtime<Editor>| {
+        rt.elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("page-title"))
+            .unwrap()
+            .rect[3]
+    };
+    let before = title_height(&rt);
+    rt.state.theme.text_scale = crate::text_scale::DesktopTextScale::fixed(0.8182);
+    rt.invalidate();
+    for _ in 0..24 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(title_height(&rt) < before);
+    assert!((rt.state.theme.kit().ty.ui.size - 11.0).abs() < 0.001);
+    assert_eq!(rt.state.candidate().unwrap(), candidate);
+    let window = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("settings-window"))
+        .unwrap();
+    assert_eq!(window.rect, [0.0, 0.0, 980.0, 720.0]);
+}
+
+#[test]
+fn desktop_scaled_pages_and_dialogs_stay_inside_the_viewport() {
+    for text_scale in [0.8182, 1.0, 1.25] {
+        let mut rt = runtime_with_text_scale((840.0, 620.0), 1.25, text_scale);
+        for page in 0..SECTIONS.len() {
+            rt.state.navigate(page);
+            rt.invalidate();
+            rt.frame(0.0);
+            for key in ["page-title", "apply", "reset", "search"] {
+                let el = rt
+                    .elements()
+                    .into_iter()
+                    .find(|e| e.key.as_deref() == Some(key))
+                    .unwrap();
+                let [x, y, w, h] = el.rect;
+                assert!(
+                    x >= 0.0 && y >= 0.0 && x + w <= 840.1 && y + h <= 620.1,
+                    "{text_scale}/{page}/{key}: {:?}",
+                    el.rect
+                );
+            }
+        }
+        rt.state.modal = Some(Modal::Help);
+        rt.invalidate();
+        rt.frame(0.0);
+        let dialog = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("confirmation-dialog"))
+            .unwrap();
+        assert!(dialog.rect[1] >= 0.0 && dialog.rect[1] + dialog.rect[3] <= 620.1);
+    }
 }
 
 fn tap(rt: &mut Runtime<Editor>, key: &str) {
@@ -304,7 +373,12 @@ fn edited_and_invalid_scenes_show_validation_and_apply_state() {
 
 #[test]
 fn layout_stays_inside_minimum_and_fractional_viewports() {
-    for size in [(840.0, 620.0), (980.0, 720.0)] {
+    for size in [
+        (840.0, 620.0),
+        (980.0, 720.0),
+        (1100.0, 720.0),
+        (1440.0, 900.0),
+    ] {
         for scale in [1.0, 1.25, 2.0] {
             let mut rt = runtime(size, scale);
             for page in 0..SECTIONS.len() {
@@ -330,6 +404,106 @@ fn layout_stays_inside_minimum_and_fractional_viewports() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn setting_copy_reflows_without_crossing_the_control_column() {
+    for width in [840.0, 980.0, 1100.0] {
+        for scale in [1.0, 1.25, 2.0] {
+            let mut rt = runtime((width, 720.0), scale);
+            rt.state.navigate(1);
+            let i = rt.state.field_index("whisper.model").unwrap();
+            rt.state.fields[i].spec.label =
+                "Model for multilingual transcription and custom local recordings".into();
+            rt.state.fields[i].spec.description = "Choose an installed model, or browse for a custom model file. The full path stays in the configuration while the filename is shown here.".into();
+            rt.invalidate();
+            for _ in 0..3 {
+                rt.frame(0.0);
+            }
+            let elements = rt.elements();
+            let find = |key: &str| {
+                elements
+                    .iter()
+                    .find(|e| e.key.as_deref() == Some(key))
+                    .unwrap()
+            };
+            let control = find(&format!("choice-{i}-trigger"));
+            let mut previous_bottom = 0.0;
+            for key in [
+                "label-whisper.model",
+                "description-whisper.model",
+                "key-whisper.model",
+            ] {
+                let copy = find(key);
+                let [x, y, w, h] = copy.rect;
+                assert!(w > 0.0 && h > 0.0, "{key} has no area");
+                assert!(
+                    x + w <= control.rect[0] - 16.0,
+                    "{key} overlaps control at {width}@{scale}"
+                );
+                assert!(y >= previous_bottom, "{key} overlaps preceding text");
+                previous_bottom = y + h;
+            }
+            let browse = find(&format!("browse-{i}"));
+            let custom = find(&format!("custom-{i}"));
+            let default = find(&format!("default-{i}"));
+            assert!((browse.rect[1] - custom.rect[1]).abs() < 0.1);
+            assert!((custom.rect[1] - default.rect[1]).abs() < 0.1);
+            assert!(default.rect[0] + default.rect[2] <= width - 24.0);
+        }
+    }
+}
+
+#[test]
+fn typography_in_dialogs_stays_inside_the_minimum_viewport() {
+    let mut rt = runtime((840.0, 620.0), 1.25);
+    for modal in [
+        Modal::Save,
+        Modal::Reset,
+        Modal::Reload,
+        Modal::Restart,
+        Modal::Quit,
+        Modal::Help,
+    ] {
+        rt.state.modal = Some(modal);
+        rt.invalidate();
+        for _ in 0..3 {
+            rt.frame(0.0);
+        }
+        let elements = rt.elements();
+        for key in ["confirmation-dialog", "confirm", "cancel"] {
+            let el = elements
+                .iter()
+                .find(|e| e.key.as_deref() == Some(key))
+                .unwrap();
+            let [x, y, w, h] = el.rect;
+            assert!(
+                x >= 0.0 && y >= 0.0 && x + w <= 840.1 && y + h <= 620.1,
+                "{modal:?}: {key} {:?}",
+                el.rect
+            );
+        }
+    }
+}
+
+#[test]
+fn shortcut_descriptions_have_a_shared_column_instead_of_manual_spaces() {
+    let mut rt = runtime((840.0, 620.0), 1.25);
+    rt.state.modal = Some(Modal::Help);
+    rt.invalidate();
+    rt.frame(0.0);
+    let elements = rt.elements();
+    let mut description_x = None;
+    for i in 0..6 {
+        let key = format!("shortcut-description-{i}");
+        let el = elements
+            .iter()
+            .find(|e| e.key.as_deref() == Some(&key))
+            .unwrap();
+        let x = *description_x.get_or_insert(el.rect[0]);
+        assert!((el.rect[0] - x).abs() < 0.1);
+        assert!(el.rect[2] > 0.0 && el.rect[0] + el.rect[2] < 840.0);
     }
 }
 
