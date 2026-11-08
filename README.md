@@ -1,3 +1,5 @@
+![Voxtype UI — graphical settings, voice in focus](docs/header.png)
+
 # Voxtype UI
 
 A custom recording overlay and a complete graphical settings editor for
