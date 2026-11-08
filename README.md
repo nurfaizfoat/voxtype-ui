@@ -1,20 +1,26 @@
+![Voxtype UI — graphical settings, voice in focus](docs/header.png)
+
 # Voxtype UI
 
-![Synthetic recording preview with the themed dot-matrix indicator](docs/preview.png)
+A custom recording overlay and a complete graphical settings editor for
+[Voxtype](https://github.com/peteonrails/voxtype) on Omarchy/Hyprland.
+This is a companion UI, not a replacement transcription engine or an official
+Voxtype release. The existing daemon, speech engines and text output remain in use.
 
-Centered silhouette rendered at 3× for inspection (example accent):
+![Voxtype graphical configuration and theme-aware dot-matrix recording indicator](docs/voxtype-ui-overview.png)
 
-![Square-dot reference indicator](docs/indicator-3x.png)
-
-A custom Voxtype recording overlay and a planned friendlier graphical
-configuration editor on Omarchy/Hyprland.
+Actual UI captures with demo settings; the indicator is enlarged 2× to show its
+square pixels. No real audio or private configuration is shown.
 
 ## Status
 
 The approved indicator can run as Voxtype's live OSD through its official
 Quickshell frontend. See [installation and rollback](docs/install.md). It follows
 real daemon state/audio without changing transcription or output handling.
-The graphical configuration editor is still planned, not implemented.
+The separate **Rune settings editor** is working: it reads the installed
+Voxtype schema and hardware support, edits every setting in the installed schema (187 in Voxtype
+1.1.1) plus the full TOML document, validates and backs up before an explicit
+Apply, and keeps daemon restart as a separate confirmation.
 
 To preview without installing:
 
@@ -29,6 +35,37 @@ separate installation step. The screenshots use fake content.
 The dots and border follow Omarchy's theme accent dynamically. The fill remains
 black; the screenshots use an example accent rather than your current theme.
 
+### Settings preview
+
+```sh
+bin/settings-install  # Build and install the GUI + launcher for this user.
+bin/settings          # Run the live editor without installing.
+bin/settings --demo   # Synthetic data; Apply never writes or restarts.
+bin/settings-test     # Tests and headless gallery in build/settings/.
+```
+
+`bin/settings-install` installs under `~/.local` with no sudo. Its launcher
+override makes **Voxtype Configuration** open the GUI; `voxtype configure` still
+opens the TUI. Reverse with `bin/settings-uninstall`.
+
+![Voxtype settings following desktop text scaling](docs/settings-desktop-scaled.png)
+
+The editor follows `voxtype config schema --json`: engine, hotkey, audio,
+output, text, VAD, meeting, notifications, OSD, status and advanced controls,
+with discovered models, ALSA devices, engines and OSD styles. The Config file
+page covers replacements, profiles, modifier maps, driver arrays and future keys.
+Apply validates the whole file, writes a private backup, preserves mode and
+atomically replaces the configuration; restart requires a separate confirmation
+and an idle daemon. Styling follows Strata's Omarchy mode: JetBrains Mono,
+desktop text scaling, compact chrome and flat controls. Like Strata, a 13px root
+is scaled and rounded before Wayland applies monitor scaling separately.
+See [settings/README.md](settings/README.md).
+
+More captures: [Overview](docs/settings-overview.png) ·
+[Model picker](docs/settings-model.png) · [Full TOML editor](docs/settings-config.png) ·
+[Recording preview](docs/preview.png) · [3× indicator detail](docs/indicator-3x.png).
+Rebuild the combined image with `sh bin/docs-preview` (ImageMagick and Fontconfig).
+
 ## Agreed first version
 
 - A square-corner black indicator sized around its 27 × 6 square-dot grid, rather
@@ -40,8 +77,10 @@ black; the screenshots use an example accent rather than your current theme.
   logical pixels inside the focused window's bottom center. A native-pixel Canvas
   buffer uses the actual window scale (which can differ from the screen scale).
   A black gap also separates every dot from the frame.
-- Exact centered taper at rest/reference; bounded, symmetric speech activity at
-  12.5 fps and a stepped processing sweep. No outlines, glow, blur, or gradients.
+- Exact centered taper at rest/reference; more sensitive, bounded, symmetric
+  listening activity at 25 fps and the original 12.5 fps processing sweep.
+  Strong input fills the same reference silhouette without enlarging the grid.
+  No outlines, glow, blur, or gradients.
 - Follow whichever window is currently focused, including during transcription.
 - Never activate a window, restore focus, or change Voxtype's output handling.
 - Install through Voxtype's existing OSD supervisor after testing the preview.
@@ -66,9 +105,10 @@ black; the screenshots use an example accent rather than your current theme.
 
 - The existing Voxtype TUI feels too barebones to the user.
 - Design a friendlier way to inspect and edit Voxtype settings.
-- Exact controls, layout, and implementation stack are not chosen yet.
-- Preserve comments and unrelated settings; validate edits and back up the
-  configuration before writing. Make service restarts explicit where required.
+- Rune/rune-kit editor covering every installed schema setting (187 in 1.1.1) plus full TOML.
+- Discover models, ALSA devices, engines, OSD styles and binary variants.
+- Preserve comments and unrelated settings; validate the complete file and back
+  up atomically before writing. Keep service restarts explicit and idle-gated.
 
 ## Important focus/delivery distinction
 
@@ -122,8 +162,10 @@ Re-check these details before implementation; they may change between sessions.
   every composited pixel; requires Hyprland, Quickshell and ImageMagick.
 - `tests/` — fake-data rendering fixture, exact dot/pixel checks, speech simulation
   invariants, and geometry edge cases.
-- The settings editor will be a separate Qt Quick/C++ app following Omarchy's
-  desktop-app conventions. No editor scaffold or installation yet.
+- `settings/` — Rust/Rune working settings editor with schema, discovery,
+  comment-preserving TOML patches, validation, backups and explicit restart.
+- `bin/settings`, `bin/settings-build`, `bin/settings-test` — launch (live or
+  `--demo`), build and verify the editor.
 
 See [docs/prototype.md](docs/prototype.md) for usage and current limitations.
 
@@ -133,5 +175,6 @@ See [docs/prototype.md](docs/prototype.md) for usage and current limitations.
    or selecting a desktop-app stack.
 2. Test live dictation in a disposable field after installation.
 3. Verify moving/resizing windows and multiple monitors on the real desktop.
-4. Design the configuration UI around safe, comment-preserving edits.
+4. Review the working Rune editor on an unlocked desktop, including native
+   fractional scaling, then keep it aligned with future Voxtype schema versions.
 5. Keep updates, rollback and any service restart explicit.

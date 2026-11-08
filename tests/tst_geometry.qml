@@ -73,6 +73,34 @@ TestCase {
         verify(Geometry.energy(0.1, 0.05) > 0);
     }
 
+    function test_quietAudioCompandingAndNoiseFloor() {
+        compare(Geometry.energy(0.005, 0.001), 0, "Near-zero noise stays at rest.");
+        verify(Geometry.energy(0.04, 0.008) > 0.3, "Quiet input should occupy several rows.");
+        verify(Geometry.energy(0.12, 0.025) > 0.65, "Moderate input should reach upper rows.");
+        compare(Geometry.energy(0.3, 0.075), 1, "Stronger input can fill the silhouette.");
+        var previous = 0;
+        for (var i = 0; i <= 100; i++) {
+            var value = Geometry.energy(i / 100, i / 300);
+            verify(value >= previous && value <= 1, "Response must be monotone and bounded.");
+            previous = value;
+        }
+    }
+
+    function test_attackReleaseAndStaleAudio() {
+        var onset = Geometry.smoothLevel(0, 1, 40);
+        verify(onset > 0.85 && onset < 1, "One frame must visibly acknowledge new audio.");
+        var released = Geometry.smoothLevel(onset, 0, 40);
+        verify(released > 0 && released < onset, "Release should not snap to silence.");
+        verify(released > onset * 0.65, "Keep short syllable gaps connected.");
+        for (var i = 0; i < 25; i++) released = Geometry.smoothLevel(released, 0, 40);
+        compare(released, 0, "A stale/disconnected bridge must settle completely.");
+        compare(Geometry.smoothLevel(0, 0, 40), 0);
+        compare(Geometry.smoothLevel(NaN, Infinity, 40), 0);
+        compare(Geometry.smoothLevel(0.5, 1, NaN), 0.5);
+        var twoTicks = Geometry.smoothLevel(Geometry.smoothLevel(0, 1, 40), 1, 40);
+        verify(Math.abs(twoTicks - Geometry.smoothLevel(0, 1, 80)) < 0.000001);
+    }
+
     function test_focusAddressesAndEmptyFocus() {
         compare(Geometry.normalizedAddress("0xAb123"), "ab123");
         compare(Geometry.normalizedAddress("ab123"), "ab123");

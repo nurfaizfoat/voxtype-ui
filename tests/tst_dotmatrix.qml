@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import "../overlay/DotMatrix.js" as Matrix
+import "../overlay/Geometry.js" as Geometry
 
 TestCase {
     name: "DotMatrix"
@@ -99,5 +100,23 @@ TestCase {
         for (var amplitude of [0, -1, NaN, Infinity])
             compare(Matrix.activeCounts(amplitude, 1), Array(27).fill(1));
         for (var count of Matrix.activeCounts(2, 1)) verify(count >= 1 && count <= 6);
+    }
+
+    function test_recordingUsesMoreOfTheSameSilhouette() {
+        var quiet = Matrix.activeCounts(Geometry.energy(0.04, 0.008), 0.32);
+        var moderate = Matrix.activeCounts(Geometry.energy(0.12, 0.025), 0.32);
+        var strong = Matrix.activeCounts(Geometry.energy(0.3, 0.075), 0.32);
+        verify(quiet[13] >= 3, "Quiet input should reach the middle rows.");
+        verify(moderate[13] >= 4, "Moderate input should visibly exceed 2–3 rows.");
+        compare(strong, Matrix.capacities, "Stronger input fills exactly the processing/reference footprint.");
+        verify(moderate.reduce(function(sum, n) { return sum + n; }, 0)
+            > quiet.reduce(function(sum, n) { return sum + n; }, 0));
+        for (var counts of [quiet, moderate, strong]) {
+            compare(counts.length, 27);
+            for (var c = 0; c < 27; c++) {
+                verify(counts[c] >= 1 && counts[c] <= Matrix.capacities[c]);
+                compare(counts[c], counts[26 - c]);
+            }
+        }
     }
 }

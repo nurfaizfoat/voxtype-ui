@@ -1,0 +1,32 @@
+#!/bin/sh
+# Compose real, sanitized UI captures; never start recording or touch live config.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+mkdir -p "$ROOT/build/docs"
+FONT="$(fc-match 'JetBrainsMono Nerd Font' -f '%{file}')"
+magick "$ROOT/docs/indicator-native.png" -filter point -resize 200% \
+    "$ROOT/build/docs/indicator-2x.png"
+magick -size 2000x1240 xc:'#000700' \
+    -font "$FONT" -fill '#ffd48b' -pointsize 44 \
+    -annotate +48+82 'Voxtype UI' \
+    -fill '#aa996b' -pointsize 24 \
+    -annotate +48+130 'Graphical configuration + focused-window recording feedback' \
+    -fill '#ffd48b' -pointsize 26 \
+    -annotate +48+202 'Configuration' \
+    -annotate +1480+202 'Recording indicator' \
+    -fill '#070f07' -stroke '#28352a' -strokewidth 1 \
+    -draw 'rectangle 1470,225 1952,1125' \
+    "$ROOT/docs/settings-desktop-scaled.png" -geometry +48+225 -composite \
+    "$ROOT/build/docs/indicator-2x.png" -geometry +1540+365 -composite \
+    -stroke none -fill '#aa996b' -pointsize 18 \
+    -annotate +1540+492 '2× pixel detail' \
+    -fill '#ffd48b' -pointsize 21 \
+    -annotate +1500+560 'Pixel-aligned dot matrix' \
+    -fill '#aa996b' -pointsize 20 \
+    -annotate +1500+610 'Follows the focused window' \
+    -annotate +1500+650 'Recording + transcription' \
+    -annotate +1500+690 'Theme-aware accent' \
+    -annotate +1500+1020 'Demo settings; no real audio.' \
+    -annotate +48+1190 'Omarchy / Hyprland · Rune settings · Quickshell overlay' \
+    -strip "$ROOT/docs/voxtype-ui-overview.png"
+printf '%s\n' "Generated docs/voxtype-ui-overview.png from existing captures."

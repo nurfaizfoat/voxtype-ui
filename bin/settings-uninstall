@@ -1,0 +1,23 @@
+#!/bin/sh
+# Remove the user-local settings editor and restore the packaged TUI launcher.
+set -eu
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+APP_DIR="$DATA_HOME/applications"
+ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
+PIXMAP_DIR="$DATA_HOME/pixmaps"
+
+rm -f "$BIN_DIR/voxtype-settings"
+rm -f "$ICON_DIR/voxtype-settings.svg"
+rm -f "$PIXMAP_DIR/voxtype-settings.svg"
+rm -f "$APP_DIR/voxtype-settings.desktop"
+rm -f "$APP_DIR/voxtype-configure.desktop"
+if [ -e "$APP_DIR/voxtype-configure.desktop.pre-voxtype-settings" ]; then
+    mv "$APP_DIR/voxtype-configure.desktop.pre-voxtype-settings" "$APP_DIR/voxtype-configure.desktop"
+fi
+
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" || true
+if [ -f "$DATA_HOME/icons/hicolor/index.theme" ]; then
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "$DATA_HOME/icons/hicolor" || true
+fi
+printf 'Uninstalled the settings editor. Voxtype config and daemon were not touched.\n'

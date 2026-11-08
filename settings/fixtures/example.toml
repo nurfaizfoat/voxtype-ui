@@ -1,0 +1,28 @@
+# Made-up configuration used by demo mode and tests, never the user's file.
+engine = "whisper"
+
+[hotkey]
+enabled = false
+key = "F13"
+
+[audio]
+device = "default"
+max_duration_secs = 60
+pause_media = true
+
+[whisper]
+model = "base.en"
+language = ["en", "ms"]
+translate = false
+
+[output]
+mode = "type"
+type_delay_ms = 1
+fallback_to_clipboard = true
+
+[text.replacements]
+"vox type" = "Voxtype"
+
+[osd]
+enabled = true
+frontend = "quickshell"
