@@ -1,0 +1,7 @@
+# Synthetic palette fixture for reproducible Omarchy-style screenshots.
+background = "#000900"
+foreground = "#FEDBA0"
+accent = "#6e9cf7"
+dark_background = "#000700"
+lighter_background = "#1a221a"
+muted = "#585d57"
